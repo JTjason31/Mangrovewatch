@@ -4,10 +4,11 @@ from datetime import datetime, timedelta
 
 np.random.seed(42)
 
-N = 500
+# Load real, vegetation-validated plot locations
+locations_df = pd.read_csv('data/valid_mangrove_plot_locations.csv')
+locations_df = locations_df.sample(frac=1, random_state=42).reset_index(drop=True)  # shuffle
 
-LON_MIN, LON_MAX = 100.52, 100.68
-LAT_MIN, LAT_MAX = 4.70, 4.90
+N = len(locations_df)
 
 species_list = [
     'Rhizophora apiculata',
@@ -25,15 +26,13 @@ species_profiles = {
     'Bruguiera gymnorhiza':   {'sal_opt': 12, 'sal_tol': 7,  'inund_opt': 45, 'inund_tol': 18},
 }
 
-# Each plot is assigned a site-quality tier FIRST (guarantees balanced, separable classes)
 tiers = ['High', 'Moderate', 'Low']
-tier_counts = [167, 167, 166]
+tier_counts = [N // 3 + (1 if N % 3 > 0 else 0), N // 3 + (1 if N % 3 > 1 else 0), N // 3]
 
-# How far off-optimal (in units of species tolerance) each tier's conditions are
 tier_mismatch = {
-    'High':     {'sal_dev_factor': 0.2, 'inund_dev_factor': 0.2, 'wave_p': [0.80, 0.17, 0.03], 'sed_dev': 4,  'ndvi_mean': 0.48},
-    'Moderate': {'sal_dev_factor': 1.1, 'inund_dev_factor': 1.1, 'wave_p': [0.35, 0.50, 0.15], 'sed_dev': 14, 'ndvi_mean': 0.30},
-    'Low':      {'sal_dev_factor': 2.4, 'inund_dev_factor': 2.4, 'wave_p': [0.10, 0.30, 0.60], 'sed_dev': 25, 'ndvi_mean': 0.12},
+    'High':     {'dev_range': (0.0, 0.7),  'wave_p': [0.80, 0.17, 0.03], 'sed_range': (0, 10),  'ndvi_bonus_mult': 1.25},
+    'Moderate': {'dev_range': (0.7, 1.5),  'wave_p': [0.30, 0.55, 0.15], 'sed_range': (8, 20),  'ndvi_bonus_mult': 1.0},
+    'Low':      {'dev_range': (1.5, 3.0),  'wave_p': [0.05, 0.25, 0.70], 'sed_range': (18, 32), 'ndvi_bonus_mult': 0.75},
 }
 
 wave_energy_categories = ['Low', 'Moderate', 'High']
@@ -41,28 +40,35 @@ wave_energy_penalty = {'Low': 0, 'Moderate': -8, 'High': -20}
 
 rows = []
 plot_num = 1
+loc_idx = 0
 
 for tier, count in zip(tiers, tier_counts):
     tm = tier_mismatch[tier]
     for _ in range(count):
+        if loc_idx >= len(locations_df):
+            break
+
         plot_id = f"P{plot_num:04d}"
         plot_num += 1
 
-        lat = np.random.uniform(LAT_MIN, LAT_MAX)
-        lon = np.random.uniform(LON_MIN, LON_MAX)
+        loc_row = locations_df.iloc[loc_idx]
+        lon = loc_row['longitude']
+        lat = loc_row['latitude']
+        ndvi_real = loc_row['ndvi_real_satellite']
+        loc_idx += 1
 
         species = np.random.choice(species_list)
         profile = species_profiles[species]
 
-        # Deviation scaled by tier (small deviation for High tier, large for Low tier)
-        sal_dev = np.random.normal(0, profile['sal_tol'] * tm['sal_dev_factor'] * 0.6)
-        inund_dev = np.random.normal(0, profile['inund_tol'] * tm['inund_dev_factor'] * 0.6)
+        # Draw a magnitude from the tier's non-overlapping range, apply random sign
+        dev_magnitude = np.random.uniform(tm['dev_range'][0], tm['dev_range'][1])
+        sal_dev = profile['sal_tol'] * dev_magnitude * np.random.choice([-1, 1])
+        inund_dev = profile['inund_tol'] * dev_magnitude * np.random.choice([-1, 1])
 
         salinity = np.clip(profile['sal_opt'] + sal_dev, 5, 35)
         inundation = np.clip(profile['inund_opt'] + inund_dev, 10, 90)
         wave_energy = np.random.choice(wave_energy_categories, p=tm['wave_p'])
-        sedimentation = np.clip(np.random.normal(20 + (tm['sed_dev'] if np.random.rand() > 0.5 else -tm['sed_dev']*0.3), 5), 5, 50)
-        ndvi_baseline = np.clip(np.random.normal(tm['ndvi_mean'], 0.06), -0.1, 0.6)
+        sedimentation = np.clip(np.random.uniform(tm['sed_range'][0], tm['sed_range'][1]) + 20, 5, 50)
 
         planting_date = datetime(2016, 1, 1) + timedelta(days=int(np.random.uniform(0, 2900)))
 
@@ -70,11 +76,12 @@ for tier, count in zip(tiers, tier_counts):
         inund_penalty = -((inundation - profile['inund_opt']) ** 2) / (2 * profile['inund_tol'] ** 2) * 35
         wave_penalty = wave_energy_penalty[wave_energy]
         sediment_penalty = -abs(sedimentation - 20) * 0.4
-        ndvi_bonus = ndvi_baseline * 25
+        ndvi_bonus = ndvi_real * 25 * tm['ndvi_bonus_mult']
 
         survival_rate = np.clip(
-            80 + sal_penalty + inund_penalty + wave_penalty + sediment_penalty + ndvi_bonus
-            + np.random.normal(0, 1),
+            80 + (sal_penalty * 1.4) + (inund_penalty * 1.4) + (wave_penalty * 1.5)
+            + (sediment_penalty * 1.2) + ndvi_bonus
+            + np.random.normal(0, 2.5),
             0, 100
         )
 
@@ -88,7 +95,7 @@ for tier, count in zip(tiers, tier_counts):
             'tidal_inundation_freq_pct': round(inundation, 2),
             'wave_energy_exposure': wave_energy,
             'sedimentation_rate_mm_yr': round(sedimentation, 2),
-            'ndvi_at_planting': round(ndvi_baseline, 3),
+            'ndvi_at_planting': round(ndvi_real, 3),
             'survival_rate_pct': round(survival_rate, 2),
             'survival_outcome': tier
         })
@@ -96,6 +103,6 @@ for tier, count in zip(tiers, tier_counts):
 df = pd.DataFrame(rows).sample(frac=1, random_state=42).reset_index(drop=True)
 df.to_csv('data/matang_dummy_restoration_dataset.csv', index=False)
 
-print(f"Generated {len(df)} synthetic restoration records.")
+print(f"Generated {len(df)} synthetic restoration records using real mangrove-validated NDVI.")
 print(df['survival_outcome'].value_counts())
 print("\nSaved to data/matang_dummy_restoration_dataset.csv")

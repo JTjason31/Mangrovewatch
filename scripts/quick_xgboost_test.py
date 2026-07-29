@@ -29,9 +29,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 model = xgb.XGBClassifier(
-    n_estimators=300,
+    n_estimators=400,
     max_depth=6,
-    learning_rate=0.08,
+    learning_rate=0.05,
     random_state=42,
     eval_metric='mlogloss'
 )
