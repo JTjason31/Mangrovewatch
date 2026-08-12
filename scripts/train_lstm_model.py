@@ -8,8 +8,8 @@ from tensorflow.keras import layers
 X = np.load('data/lstm_X.npy')
 y = np.load('data/lstm_y.npy')
 
-# Reshape X for LSTM: (samples, timesteps, features=1)
-X = X.reshape((X.shape[0], X.shape[1], 1))
+# X already has shape (samples, timesteps, features=3) - no reshape needed
+print(f"X shape: {X.shape}, y shape: {y.shape}")
 
 # 70/30 train-test split, preserving time order (no shuffle, since it's a time series)
 split_idx = int(len(X) * 0.7)
@@ -19,7 +19,7 @@ y_train, y_test = y[:split_idx], y[split_idx:]
 print(f"Train samples: {len(X_train)}, Test samples: {len(X_test)}")
 
 model = keras.Sequential([
-    layers.Input(shape=(X.shape[1], 1)),
+    layers.Input(shape=(X.shape[1], X.shape[2])),
     layers.LSTM(32, return_sequences=True),
     layers.LSTM(16),
     layers.Dense(8, activation='relu'),

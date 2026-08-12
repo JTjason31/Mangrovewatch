@@ -5,17 +5,21 @@ df = pd.read_csv('data/matang_ndvi_hybrid_timeseries.csv')
 df['date'] = pd.to_datetime(df['date'])
 df = df.sort_values('date').reset_index(drop=True)
 
-print(f"Total months: {len(df)}")
-print(df[['date', 'ndvi_value', 'is_synthetic']].head(10))
+# Encode month cyclically (so December and January are numerically "close")
+df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12)
+df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12)
 
-ndvi_values = df['ndvi_value'].values
+print(f"Total months: {len(df)}")
 
 WINDOW_SIZE = 6
+FEATURES = ['ndvi_value', 'month_sin', 'month_cos']
+
+data = df[FEATURES].values  # shape (n_months, 3)
 
 X, y = [], []
-for i in range(len(ndvi_values) - WINDOW_SIZE):
-    X.append(ndvi_values[i:i+WINDOW_SIZE])
-    y.append(ndvi_values[i+WINDOW_SIZE])
+for i in range(len(data) - WINDOW_SIZE):
+    X.append(data[i:i+WINDOW_SIZE])       # past 6 months, all 3 features
+    y.append(data[i+WINDOW_SIZE][0])      # predict just the NDVI value
 
 X = np.array(X)
 y = np.array(y)
