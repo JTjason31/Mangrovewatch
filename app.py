@@ -70,6 +70,57 @@ def predict_suitability():
         'probabilities': proba_dict
     })
 
+@app.route('/predict/species_recommendation', methods=['POST'])
+def predict_species_recommendation():
+    data = request.get_json()
+
+    required_fields = [
+        'soil_salinity_ppt', 'tidal_inundation_freq_pct',
+        'wave_energy_exposure', 'sedimentation_rate_mm_yr', 'ndvi_at_planting'
+    ]
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        return jsonify({'error': f'Missing fields: {missing}'}), 400
+
+    try:
+        wave_encoded = le_wave.transform([data['wave_energy_exposure']])[0]
+    except ValueError as e:
+        return jsonify({'error': f'Invalid category value: {str(e)}'}), 400
+
+    results = []
+    for species_name in le_species.classes_:
+        species_encoded = le_species.transform([species_name])[0]
+
+        features = np.array([[
+            species_encoded,
+            data['soil_salinity_ppt'],
+            data['tidal_inundation_freq_pct'],
+            wave_encoded,
+            data['sedimentation_rate_mm_yr'],
+            data['ndvi_at_planting']
+        ]])
+
+        pred_encoded = xgb_model.predict(features)[0]
+        pred_proba = xgb_model.predict_proba(features)[0]
+        outcome = le_outcome.inverse_transform([pred_encoded])[0]
+
+        # Probability of "High" outcome specifically, used for ranking
+        high_idx = list(le_outcome.classes_).index('High')
+        high_prob = float(pred_proba[high_idx])
+
+        results.append({
+            'species': species_name,
+            'predicted_outcome': outcome,
+            'probability_high_success': round(high_prob, 4)
+        })
+
+    # Rank species by likelihood of High success, best first
+    results.sort(key=lambda x: x['probability_high_success'], reverse=True)
+
+    return jsonify({
+        'site_conditions': data,
+        'species_ranked_by_suitability': results
+    })
 
 @app.route('/predict/forecast', methods=['GET'])
 def predict_forecast():
