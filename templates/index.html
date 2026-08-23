@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MangroveWatch · Matang, Perak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #16221F;
+    --ink-soft: #4A5652;
+    --bg: #F6F2E9;
+    --surface: #FFFFFF;
+    --teal: #0E4F52;
+    --teal-light: #146B6E;
+    --mangrove: #47795A;
+    --ochre: #B98B4E;
+    --rust: #A34632;
+    --line: #E1D9C6;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .wordmark {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    color: var(--teal);
+  }
+
+  .wordmark span { color: var(--mangrove); }
+
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .hero {
+    padding: 36px 40px 0;
+    max-width: 640px;
+  }
+
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 28px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+  }
+
+  .hero p {
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .tide-divider {
+    height: 34px;
+    margin: 28px 0 0;
+    background: linear-gradient(90deg, var(--rust) 0%, var(--ochre) 50%, var(--mangrove) 100%);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 34' preserveAspectRatio='none'><path d='M0,20 C150,0 300,34 450,18 C600,4 750,30 900,16 C1050,4 1150,20 1200,14 L1200,34 L0,34 Z'/></svg>") center/100% 100%;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 34' preserveAspectRatio='none'><path d='M0,20 C150,0 300,34 450,18 C600,4 750,30 900,16 C1050,4 1150,20 1200,14 L1200,34 L0,34 Z'/></svg>") center/100% 100%;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 28px;
+    padding: 32px 40px 60px;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+
+  .panel h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 18px;
+    color: var(--teal);
+  }
+
+  label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin: 16px 0 6px;
+  }
+
+  label:first-of-type { margin-top: 0; }
+
+  select, input[type="range"] {
+    width: 100%;
+  }
+
+  select {
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+
+  input[type="range"] {
+    accent-color: var(--teal);
+    height: 20px;
+  }
+
+  .range-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--teal);
+    float: right;
+  }
+
+  button.run {
+    width: 100%;
+    margin-top: 22px;
+    padding: 12px;
+    background: var(--teal);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  button.run:hover { background: var(--teal-light); }
+  button.run:disabled { opacity: 0.6; cursor: wait; }
+
+  .results-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .gauge-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .gauge-row:last-child { margin-bottom: 0; }
+
+  .gauge-label {
+    width: 76px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+
+  .gauge-track {
+    flex: 1;
+    height: 16px;
+    background: var(--bg);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+
+  .gauge-fill {
+    height: 100%;
+    border-radius: 999px;
+    width: 0%;
+    transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .gauge-fill.High { background: var(--mangrove); }
+  .gauge-fill.Moderate { background: var(--ochre); }
+  .gauge-fill.Low { background: var(--rust); }
+
+  .gauge-pct {
+    width: 46px;
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+
+  .outcome-banner {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .outcome-banner .tag {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 22px;
+  }
+
+  .outcome-banner .tag.High { color: var(--mangrove); }
+  .outcome-banner .tag.Moderate { color: var(--ochre); }
+  .outcome-banner .tag.Low { color: var(--rust); }
+
+  .outcome-banner .sub {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  .species-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .species-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+
+  .species-list li:last-child { border-bottom: none; }
+
+  .species-list .rank {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--teal);
+    font-size: 11px;
+    width: 22px;
+  }
+
+  .species-list .name { flex: 1; font-style: italic; }
+
+  .species-list .score {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  .placeholder {
+    color: var(--ink-soft);
+    font-size: 13px;
+    padding: 30px 0;
+    text-align: center;
+  }
+
+  footer {
+    padding: 20px 40px 40px;
+    max-width: 1180px;
+    margin: 0 auto;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    border-top: 1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Mangrove<span>Watch</span></div>
+  <div class="meta">Matang Mangrove Forest Reserve · Perak</div>
+</header>
+
+<div class="hero">
+  <h1>Predictive restoration-suitability analysis</h1>
+  <p>Set the environmental conditions of a proposed planting site to estimate restoration-success probability, ranked species recommendations, and a 24-month vegetation forecast.</p>
+</div>
+<div class="tide-divider"></div>
+
+<main>
+  <div class="panel">
+    <h2>Site conditions</h2>
+
+    <label for="species">Species</label>
+    <select id="species">
+      <option>Rhizophora apiculata</option>
+      <option>Rhizophora mucronata</option>
+      <option>Avicennia marina</option>
+      <option>Sonneratia alba</option>
+      <option>Bruguiera gymnorhiza</option>
+    </select>
+
+    <label for="salinity">Soil salinity <span class="range-value" id="salinity-val">15 ppt</span></label>
+    <input type="range" id="salinity" min="5" max="35" value="15" step="1">
+
+    <label for="inundation">Tidal inundation frequency <span class="range-value" id="inundation-val">55%</span></label>
+    <input type="range" id="inundation" min="10" max="90" value="55" step="1">
+
+    <label for="wave">Wave energy exposure</label>
+    <select id="wave">
+      <option>Low</option>
+      <option>Moderate</option>
+      <option>High</option>
+    </select>
+
+    <label for="sediment">Sedimentation rate <span class="range-value" id="sediment-val">20 mm/yr</span></label>
+    <input type="range" id="sediment" min="5" max="50" value="20" step="1">
+
+    <label for="ndvi">NDVI at site <span class="range-value" id="ndvi-val">0.50</span></label>
+    <input type="range" id="ndvi" min="0" max="1" value="0.5" step="0.01">
+
+    <button class="run" id="runBtn">Run analysis</button>
+  </div>
+
+  <div class="results-stack">
+    <div class="panel">
+      <h2>Restoration-suitability outcome</h2>
+      <div id="suitabilityResults">
+        <div class="placeholder">Set site conditions and run an analysis to see results.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Species recommendations</h2>
+      <ul class="species-list" id="speciesResults">
+        <li class="placeholder">Run an analysis to rank all five species for this site.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>24-month vegetation forecast</h2>
+      <canvas id="forecastChart" height="90"></canvas>
+    </div>
+  </div>
+</main>
+
+<footer>
+  MangroveWatch is a Final Year Project prototype. Predictions shown are generated from an XGBoost classifier and LSTM forecaster trained on a structured, supervisor-approved synthetic restoration dataset combined with real Sentinel-2 satellite imagery. Results are illustrative of the platform's predictive capability and should not be used for actual restoration decision-making without further validation against field data.
+</footer>
+
+<script>
+  const els = {
+    salinity: document.getElementById('salinity'),
+    inundation: document.getElementById('inundation'),
+    sediment: document.getElementById('sediment'),
+    ndvi: document.getElementById('ndvi'),
+  };
+
+  document.getElementById('salinity').addEventListener('input', e => {
+    document.getElementById('salinity-val').textContent = `${e.target.value} ppt`;
+  });
+  document.getElementById('inundation').addEventListener('input', e => {
+    document.getElementById('inundation-val').textContent = `${e.target.value}%`;
+  });
+  document.getElementById('sediment').addEventListener('input', e => {
+    document.getElementById('sediment-val').textContent = `${e.target.value} mm/yr`;
+  });
+  document.getElementById('ndvi').addEventListener('input', e => {
+    document.getElementById('ndvi-val').textContent = parseFloat(e.target.value).toFixed(2);
+  });
+
+  function getSiteConditions() {
+    return {
+      species: document.getElementById('species').value,
+      soil_salinity_ppt: parseFloat(els.salinity.value),
+      tidal_inundation_freq_pct: parseFloat(els.inundation.value),
+      wave_energy_exposure: document.getElementById('wave').value,
+      sedimentation_rate_mm_yr: parseFloat(els.sediment.value),
+      ndvi_at_planting: parseFloat(els.ndvi.value),
+    };
+  }
+
+  async function runAnalysis() {
+    const btn = document.getElementById('runBtn');
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+
+    const site = getSiteConditions();
+
+    try {
+      const suitRes = await fetch('/predict/suitability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(site)
+      });
+      const suit = await suitRes.json();
+      renderSuitability(suit);
+
+      const { species, ...siteNoSpecies } = site;
+      const recRes = await fetch('/predict/species_recommendation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(siteNoSpecies)
+      });
+      const rec = await recRes.json();
+      renderSpecies(rec);
+    } catch (err) {
+      document.getElementById('suitabilityResults').innerHTML =
+        `<div class="placeholder">Could not reach the prediction API. Is the Flask server running?</div>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Run analysis';
+  }
+
+  function renderSuitability(data) {
+    const outcome = data.predicted_outcome;
+    const probs = data.probabilities;
+    let html = `<div class="outcome-banner">
+      <span class="tag ${outcome}">${outcome}</span>
+      <span class="sub">predicted restoration outcome</span>
+    </div>`;
+
+    ['High', 'Moderate', 'Low'].forEach(cls => {
+      const pct = Math.round((probs[cls] || 0) * 100);
+      html += `<div class="gauge-row">
+        <div class="gauge-label">${cls}</div>
+        <div class="gauge-track"><div class="gauge-fill ${cls}" style="width:${pct}%"></div></div>
+        <div class="gauge-pct">${pct}%</div>
+      </div>`;
+    });
+
+    document.getElementById('suitabilityResults').innerHTML = html;
+
+    // trigger fill transition
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.gauge-fill').forEach(el => {
+        const w = el.style.width;
+        el.style.width = '0%';
+        requestAnimationFrame(() => { el.style.width = w; });
+      });
+    });
+  }
+
+  function renderSpecies(data) {
+    const list = document.getElementById('speciesResults');
+    list.innerHTML = data.species_ranked_by_suitability.map((s, i) => `
+      <li>
+        <span class="rank">${String(i + 1).padStart(2, '0')}</span>
+        <span class="name">${s.species}</span>
+        <span class="score">${(s.probability_high_success * 100).toFixed(1)}% high</span>
+      </li>
+    `).join('');
+  }
+
+  let forecastChart = null;
+
+  async function loadForecast() {
+    try {
+      const res = await fetch('/predict/forecast');
+      const data = await res.json();
+      const labels = data.forecast.map(f => f.date);
+      const values = data.forecast.map(f => f.forecasted_ndvi);
+
+      const ctx = document.getElementById('forecastChart').getContext('2d');
+      forecastChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Forecasted NDVI',
+            data: values,
+            borderColor: '#0E4F52',
+            backgroundColor: 'rgba(14,79,82,0.08)',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.35,
+            fill: true,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { min: 0, max: 1, grid: { color: '#E1D9C6' } },
+            x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Could not load forecast', err);
+    }
+  }
+
+  document.getElementById('runBtn').addEventListener('click', runAnalysis);
+  loadForecast();
+</script>
+
+</body>
+</html>

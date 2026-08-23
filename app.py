@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import joblib
 import numpy as np
 import pandas as pd
@@ -23,9 +23,18 @@ FORECAST_HORIZON = 24
 
 @app.route('/')
 def home():
+    return render_template('index.html')
+
+
+@app.route('/api/info')
+def api_info():
     return jsonify({
         'message': 'MangroveWatch API is running',
-        'endpoints': ['/predict/suitability (POST)', '/predict/forecast (GET)']
+        'endpoints': [
+            '/predict/suitability (POST)',
+            '/predict/forecast (GET)',
+            '/predict/species_recommendation (POST)'
+        ]
     })
 
 
