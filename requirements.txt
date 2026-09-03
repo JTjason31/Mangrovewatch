@@ -8,3 +8,5 @@ geemap
 flask 
 matplotlib 
 jupyter 
+reportlab
+pytest

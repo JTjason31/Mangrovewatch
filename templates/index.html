@@ -168,6 +168,30 @@
   button.run:hover { background: var(--teal-light); }
   button.run:disabled { opacity: 0.6; cursor: wait; }
 
+  .export-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .export-btn {
+    flex: 1;
+    min-width: 150px;
+    padding: 10px 12px;
+    background: white;
+    color: var(--teal);
+    border: 1.5px solid var(--teal);
+    border-radius: 7px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .export-btn:hover:not(:disabled) { background: var(--teal); color: white; }
+  .export-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
   .results-stack {
     display: flex;
     flex-direction: column;
@@ -337,6 +361,12 @@
     <label for="ndvi">NDVI at site <span class="range-value" id="ndvi-val">0.50</span></label>
     <input type="range" id="ndvi" min="0" max="1" value="0.5" step="0.01">
 
+    <label for="lat">Latitude</label>
+    <input type="number" id="lat" value="4.80" step="0.0001" min="4.70" max="4.90">
+
+    <label for="lon">Longitude</label>
+    <input type="number" id="lon" value="100.60" step="0.0001" min="100.52" max="100.68">
+
     <button class="run" id="runBtn">Run analysis</button>
   </div>
 
@@ -358,6 +388,16 @@
     <div class="panel">
       <h2>24-month vegetation forecast</h2>
       <canvas id="forecastChart" height="90"></canvas>
+    </div>
+
+    <div class="panel">
+      <h2>Export results</h2>
+      <div id="exportRow" class="export-row">
+        <button class="export-btn" id="exportPdfBtn" disabled>Export PDF report</button>
+        <button class="export-btn" id="exportCsvBtn" disabled>Export CSV table</button>
+        <button class="export-btn" id="exportGeoJsonBtn" disabled>Export GeoJSON layer</button>
+      </div>
+      <div class="placeholder" id="exportHint">Run an analysis first to enable exports.</div>
     </div>
   </div>
 </main>
@@ -390,6 +430,8 @@
   function getSiteConditions() {
     return {
       species: document.getElementById('species').value,
+      latitude: parseFloat(document.getElementById('lat').value),
+      longitude: parseFloat(document.getElementById('lon').value),
       soil_salinity_ppt: parseFloat(els.salinity.value),
       tidal_inundation_freq_pct: parseFloat(els.inundation.value),
       wave_energy_exposure: document.getElementById('wave').value,
@@ -397,6 +439,54 @@
       ndvi_at_planting: parseFloat(els.ndvi.value),
     };
   }
+
+  // Holds the most recent analysis so exports always reflect what's on screen
+  let lastAnalysis = null;
+
+  function setExportEnabled(enabled) {
+    ['exportPdfBtn', 'exportCsvBtn', 'exportGeoJsonBtn'].forEach(id => {
+      document.getElementById(id).disabled = !enabled;
+    });
+    document.getElementById('exportHint').style.display = enabled ? 'none' : 'block';
+  }
+
+  async function downloadExport(endpoint, fallbackName) {
+    if (!lastAnalysis) return;
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lastAnalysis)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Export failed: ${err.error || res.statusText}`);
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename=([^;]+)/);
+      const filename = match ? match[1].trim() : fallbackName;
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Could not reach the export endpoint. Is the Flask server running?');
+    }
+  }
+
+  document.getElementById('exportPdfBtn').addEventListener('click', () =>
+    downloadExport('/export/pdf', 'mangrovewatch_report.pdf'));
+  document.getElementById('exportCsvBtn').addEventListener('click', () =>
+    downloadExport('/export/csv', 'mangrovewatch_analysis.csv'));
+  document.getElementById('exportGeoJsonBtn').addEventListener('click', () =>
+    downloadExport('/export/geojson', 'mangrovewatch_analysis.geojson'));
 
   async function runAnalysis() {
     const btn = document.getElementById('runBtn');
@@ -422,9 +512,18 @@
       });
       const rec = await recRes.json();
       renderSpecies(rec);
+
+      lastAnalysis = {
+        site: site,
+        suitability: suit,
+        species_recommendation: rec,
+        forecast: lastForecastData || {}
+      };
+      setExportEnabled(true);
     } catch (err) {
       document.getElementById('suitabilityResults').innerHTML =
         `<div class="placeholder">Could not reach the prediction API. Is the Flask server running?</div>`;
+      setExportEnabled(false);
     }
 
     btn.disabled = false;
@@ -472,11 +571,13 @@
   }
 
   let forecastChart = null;
+  let lastForecastData = null;
 
   async function loadForecast() {
     try {
       const res = await fetch('/predict/forecast');
       const data = await res.json();
+      lastForecastData = data;
       const labels = data.forecast.map(f => f.date);
       const values = data.forecast.map(f => f.forecasted_ndvi);
 

@@ -4,3 +4,4 @@ __pycache__/
 .env 
 *.tif 
 *.csv 
+!data/matang_ndvi_hybrid_timeseries.csv
